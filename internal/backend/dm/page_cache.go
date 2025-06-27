@@ -23,7 +23,7 @@ var (
 
 type PageCache interface {
 	NewPage(initData []byte) int
-	GetPage(pgno int) Page
+	GetPage(pgno int) (Page, error)
 	Close()
 	Release(page Page)
 	TruncateByPgno(maxPgno int)
@@ -32,14 +32,14 @@ type PageCache interface {
 }
 
 type PageCacheImpl struct {
-	*cache.AbstractCache[*Page]
+	*cache.AbstractCache[Page]
 	file        *os.File
 	fileLock    sync.Mutex
 	pageNumbers int64
 }
 
 func NewPageCacheImpl(file *os.File, maxResource int) (*PageCacheImpl, error) {
-	parent := cache.NewAbstractCache[*Page](maxResource)
+	parent := cache.NewAbstractCache[Page](maxResource)
 	if maxResource < MEM_MIN_LIM {
 		return nil, ErrorMemTooSmall
 	}
@@ -105,16 +105,16 @@ func Open(path string, memory int64) (*PageCacheImpl, error) {
 
 func (pc *PageCacheImpl) NewPage(initData []byte) int {
 	pgno := pc.pageNumbers + 1
-	pg := NewPageImpl(pgno, initData, nil)
+	pg := NewPageImpl(int(pgno), initData, nil)
 	pc.FlushPage(pg)
 	return int(pgno)
 }
 
-func (pc *PageCacheImpl) GetPage(pgno int) (*Page, error) {
+func (pc *PageCacheImpl) GetPage(pgno int) (Page, error) {
 	return pc.AbstractCache.Get(uint64(pgno))
 }
 
-func (pc *PageCacheImpl) GetForCache(key int64) (*Page, error) {
+func (pc *PageCacheImpl) GetForCache(key int64) (Page, error) {
 	pgno := int(key)
 	offset := pageOffset(pgno)
 	data := make([]byte, PAGE_SIZE)
@@ -126,18 +126,18 @@ func (pc *PageCacheImpl) GetForCache(key int64) (*Page, error) {
 	return NewPageImpl(pgno, data, pc), nil
 }
 
-func (pc *PageCacheImpl) ReleaseForCache(pg *Page) {
+func (pc *PageCacheImpl) ReleaseForCache(pg Page) {
 	if pg.IsDirty() {
 		pc.FlushPage(pg)
 		pg.SetDirty(false)
 	}
 }
 
-func (pc *PageCacheImpl) Release(page *Page) {
-	pc.AbstractCache.Release(int64(page.GetPageNumber()))
+func (pc *PageCacheImpl) Release(page Page) {
+	pc.AbstractCache.Release(uint64(page.GetPageNumber()))
 }
 
-func (pc *PageCacheImpl) FlushPage(pg *Page) {
+func (pc *PageCacheImpl) FlushPage(pg Page) {
 	pgno := pg.GetPageNumber()
 	offset := pageOffset(pgno)
 	pc.fileLock.Lock()
