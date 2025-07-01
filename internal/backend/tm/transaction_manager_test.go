@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/herveyleaf/GoDB/pkg/common"
 )
 
 func TestCreateAndOpen(t *testing.T) {
@@ -26,7 +28,7 @@ func TestCreateAndOpen(t *testing.T) {
 	}
 
 	// 测试重复创建错误
-	if _, err := Create(path); err != ErrorFileExists {
+	if _, err := Create(path); err != common.ErrFileExists {
 		t.Fatalf("Expected ErrorFileExists, got %v", err)
 	}
 
@@ -38,13 +40,13 @@ func TestCreateAndOpen(t *testing.T) {
 	defer tm2.Close()
 
 	// 测试打开不存在的文件
-	if _, err := Open(filepath.Join(dir, "nonexistent")); err != ErrorFileNotExists {
+	if _, err := Open(filepath.Join(dir, "nonexistent")); err != common.ErrFileNotExists {
 		t.Fatalf("Expected ErrorFileNotExists, got %v", err)
 	}
 }
 
 func TestSuperXID(t *testing.T) {
-	tm := &transactionManager{} // 用于测试状态方法
+	tm := &TransactionManagerImpl{} // 用于测试状态方法
 
 	if !tm.IsCommitted(SUPER_XID) {
 		t.Fatal("SUPER_XID should be committed")
@@ -62,7 +64,7 @@ func TestErrorCases(t *testing.T) {
 	// 创建损坏的XID文件
 	corruptPath := filepath.Join(dir, "corrupt")
 	os.WriteFile(corruptPath+XID_SUFFIX, []byte{0, 0, 0}, 0600)
-	if _, err := Open(corruptPath); err != ErrorBadXIDFile {
+	if _, err := Open(corruptPath); err != common.ErrBadXIDFile {
 		t.Fatalf("Expected ErrorBadXIDFile, got %v", err)
 	}
 

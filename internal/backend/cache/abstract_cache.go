@@ -1,35 +1,34 @@
 package cache
 
 import (
-	"errors"
 	"sync"
+
+	"github.com/herveyleaf/GoDB/pkg/common"
 )
 
-var ErrCacheFull = errors.New("Cache is full!")
-
 type AbstractCache[T any] struct {
-	cache      map[uint64]T        // 实际缓存的数据
-	references map[uint64]int      // 元素的引用个数
-	getting    map[uint64]struct{} // 正在获取某资源的线程
+	cache      map[int64]T        // 实际缓存的数据
+	references map[int64]int      // 元素的引用个数
+	getting    map[int64]struct{} // 正在获取某资源的线程
 
 	maxResource int // 缓存的最大缓存资源数
 	count       int // 缓存中元素的个数
-	lock        sync.Mutex
+	lock        *sync.Mutex
 	cond        *sync.Cond // 条件变量，用于等待getting中的资源释放
 }
 
 func NewAbstractCache[T any](maxCount int) *AbstractCache[T] {
 	c := &AbstractCache[T]{
 		maxResource: maxCount,
-		cache:       make(map[uint64]T),
-		references:  make(map[uint64]int),
-		getting:     make(map[uint64]struct{}),
+		cache:       make(map[int64]T),
+		references:  make(map[int64]int),
+		getting:     make(map[int64]struct{}),
 	}
-	c.cond = sync.NewCond(&c.lock)
+	c.cond = sync.NewCond(c.lock)
 	return c
 }
 
-func (ac *AbstractCache[T]) Get(key uint64) (T, error) {
+func (ac *AbstractCache[T]) Get(key int64) (T, error) {
 	ac.lock.Lock()
 	defer ac.lock.Unlock()
 
@@ -47,7 +46,7 @@ func (ac *AbstractCache[T]) Get(key uint64) (T, error) {
 	// 检查缓存容量
 	if ac.maxResource > 0 && ac.count >= ac.maxResource {
 		var zero T
-		return zero, ErrCacheFull
+		return zero, common.ErrCacheFull
 	}
 
 	// 标记正在获取
@@ -73,7 +72,7 @@ func (ac *AbstractCache[T]) Get(key uint64) (T, error) {
 	return obj, nil
 }
 
-func (ac *AbstractCache[T]) Release(key uint64) {
+func (ac *AbstractCache[T]) Release(key int64) {
 	ac.lock.Lock()
 	defer ac.lock.Unlock()
 
@@ -104,7 +103,7 @@ func (ac *AbstractCache[T]) Close() {
 }
 
 // 抽象方法
-func (ac *AbstractCache[T]) GetForCache(key uint64) (T, error) {
+func (ac *AbstractCache[T]) GetForCache(key int64) (T, error) {
 	panic("GetForCache must be implemented")
 }
 

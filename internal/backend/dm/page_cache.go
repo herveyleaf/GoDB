@@ -1,24 +1,17 @@
 package dm
 
 import (
-	"errors"
 	"os"
 	"sync"
 
 	"github.com/herveyleaf/GoDB/internal/backend/cache"
+	"github.com/herveyleaf/GoDB/pkg/common"
 )
 
 const (
 	PAGE_SIZE   = 1 << 13
 	MEM_MIN_LIM = 10
 	DB_SUFFIX   = ".db"
-)
-
-var (
-	ErrorMemTooSmall   = errors.New("Memory too small!")
-	ErrorFileExists    = errors.New("File already exists!")
-	ErrorFileNotExists = errors.New("File does not exists!")
-	ErrorFileCannotRW  = errors.New("File cannot read or write!")
 )
 
 type PageCache interface {
@@ -41,7 +34,7 @@ type PageCacheImpl struct {
 func NewPageCacheImpl(file *os.File, maxResource int) (*PageCacheImpl, error) {
 	parent := cache.NewAbstractCache[Page](maxResource)
 	if maxResource < MEM_MIN_LIM {
-		return nil, ErrorMemTooSmall
+		return nil, common.ErrMemTooSmall
 	}
 	fileInfo, err := file.Stat()
 	if err != nil {
@@ -62,7 +55,7 @@ func Create(path string, memory int64) (*PageCacheImpl, error) {
 	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
 	if err != nil {
 		if os.IsExist(err) {
-			return nil, ErrorFileExists
+			return nil, common.ErrFileExists
 		} else {
 			return nil, err
 		}
@@ -71,7 +64,7 @@ func Create(path string, memory int64) (*PageCacheImpl, error) {
 	if fi, err := f.Stat(); err != nil {
 		mode := fi.Mode()
 		if mode.Perm()&0400 == 0 || mode.Perm()&0200 == 0 {
-			return nil, ErrorFileCannotRW
+			return nil, common.ErrFileCannotRW
 		} else {
 			return nil, err
 		}
@@ -85,7 +78,7 @@ func Open(path string, memory int64) (*PageCacheImpl, error) {
 	f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrorFileNotExists
+			return nil, common.ErrFileNotExists
 		} else {
 			return nil, err
 		}
@@ -94,7 +87,7 @@ func Open(path string, memory int64) (*PageCacheImpl, error) {
 	if fi, err := f.Stat(); err != nil {
 		mode := fi.Mode()
 		if mode.Perm()&0400 == 0 || mode.Perm()&0200 == 0 {
-			return nil, ErrorFileCannotRW
+			return nil, common.ErrFileCannotRW
 		} else {
 			return nil, err
 		}
@@ -111,7 +104,7 @@ func (pc *PageCacheImpl) NewPage(initData []byte) int {
 }
 
 func (pc *PageCacheImpl) GetPage(pgno int) (Page, error) {
-	return pc.AbstractCache.Get(uint64(pgno))
+	return pc.AbstractCache.Get(int64(pgno))
 }
 
 func (pc *PageCacheImpl) GetForCache(key int64) (Page, error) {
@@ -134,7 +127,7 @@ func (pc *PageCacheImpl) ReleaseForCache(pg Page) {
 }
 
 func (pc *PageCacheImpl) Release(page Page) {
-	pc.AbstractCache.Release(uint64(page.GetPageNumber()))
+	pc.AbstractCache.Release(int64(page.GetPageNumber()))
 }
 
 func (pc *PageCacheImpl) FlushPage(pg Page) {
